@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
+        <script src="script.js"></script>
+    </head>
+
+    <body>
+        <form enctype="multipart/form-data" id="image-form" method="post">
+            <input accept="image/*" id="image-input" type="file" />
+            <input type="submit" value="Load" />
+        </form>
+
+        <div class="wrapper">
+            <img id="image-value" />
+
+            <form id="width_choose">
+                <label>Pixel Width</label>
+                <input type="number" id="pixelwidth" value="1" />
+                <input type="submit" value="Submit" />
+            </form>
+
+            <div id="generated"></div>
+        </div>
+    </body>
+</html>
