@@ -1,0 +1,11 @@
+table {
+    border: none;
+    border-spacing: 0;
+}
+td {
+    margin: 0;
+    padding: 0;
+}
+.wrapper {
+    display: none;
+}
