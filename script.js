@@ -1,57 +1,53 @@
-$(function () {
-    onLoad();
-});
+window.addEventListener("load", onLoad, false);
 function onLoad() {
-    pixel_width_form = document.getElementById("width_choose");
-    pixel_width_form.addEventListener("submit", formSubmit, false);
-    $("#use_upload").click(function () {
-        $(".wrapper").hide();
-        $("#upload_wrapper").show();
-    });
+    const pixelWidthForm = document.getElementById("pixel-width-form");
+    pixelWidthForm.addEventListener("submit", generateTable, false);
 
-    $("#image-form").submit(function (e) {
+    document.getElementById("image-form").addEventListener("submit", (e) => {
         e.preventDefault();
-        var imageInput = document.getElementById("image-input");
+        const imageInput = document.getElementById("image-input");
 
-        var file = imageInput.files[0];
-        if (!file.type.match(/image.*/)) alert("Please select an image file");
-        var reader = new FileReader();
+        const file = imageInput.files[0];
+        if (!file.type.match(/image.*/)) {
+            alert("Please select an image file");
+            return;
+        }
+        const reader = new FileReader();
         reader.onload = (() => {
             return function (e) {
-                $("#image-value").attr("src", e.target.result);
-                $(".wrapper").show();
+                document.getElementById("image-value").setAttribute("src", e.target.result);
+                document.getElementsByClassName("wrapper")[0].style.display = "block";
             };
         })(file);
         reader.readAsDataURL(file);
     });
 }
 
-function formSubmit(e) {
+function generateTable(e) {
     e.preventDefault();
-    sel_val = document.getElementById("pixelwidth");
+    const pixelWidth = document.getElementById("pixel-width");
 
-    var pxSkip = parseInt(sel_val.value);
-    var canvas = document.createElement("canvas");
-    var ctx = canvas.getContext("2d");
+    const pxSkip = parseInt(pixelWidth.value);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-    var img = new Image();
-    img.src = $("#image-value").attr("src");
-    img.onload = function () {
+    const image = new Image();
+    image.src = document.getElementById("image-value").getAttribute("src");
+    image.onload = function () {
         const start = performance.now();
-        table = document.createElement("table", {
-            height: img.height,
-            width: img.width,
+        const table = document.createElement("table", {
+            height: image.height,
+            width: image.width,
             cellPadding: 0,
             cellSpacing: 0,
         });
+        canvas.width = image.width;
+        canvas.height = image.height;
 
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(image, 0, 0);
 
         function componentToHex(c) {
-            var hex = c.toString(16);
+            let hex = c.toString(16);
             return String(hex.length === 1 ? "0" + hex : hex);
         }
 
@@ -60,37 +56,27 @@ function formSubmit(e) {
         }
 
         const style = document.createElement("style");
-        style.innerHTML = `
-        body {
-            width: max-content;
-        }
-        table {
-            border: none;
-            border-spacing: 0;
-        }
-        td {
-            height: ${pxSkip}px;
-            margin: 0;
-            padding: 0;
-        }
-        `;
+        style.appendChild(document.createTextNode(`td { height: ${pxSkip}px; }`));
 
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(image, 0, 0);
 
-        // add table to page
-        const result = document.getElementById("generated");
+        const result = document.getElementById("result");
         result.innerHTML = "";
         result.appendChild(table);
         result.appendChild(style);
 
-        for (var j = 0; j < canvas.height; j += pxSkip) {
+        for (let j = 0; j < canvas.height; j += pxSkip) {
             const row = document.createElement("tr");
             let prevColor = null;
             let count = 0;
-            for (var i = 0; i < canvas.width; i += pxSkip) {
-                //getImage data is slow, change to be whole width of canvas & iterate that.
-                imageData = ctx.getImageData(i, j, pxSkip, pxSkip).data;
-                // average the pixels
+            for (let i = 0; i < canvas.width; i += pxSkip) {
+                const imageData = ctx.getImageData(i, j, pxSkip, pxSkip).data;
+
+                // const r = imageData[0];
+                // const g = imageData[1];
+                // const b = imageData[2];
+                // const a = imageData[3];
+
                 const reds = imageData.filter((_, i) => i % 4 === 0);
                 const greens = imageData.filter((_, i) => i % 4 === 1);
                 const blues = imageData.filter((_, i) => i % 4 === 2);
@@ -104,7 +90,7 @@ function formSubmit(e) {
                     count++;
                     if (i + pxSkip >= canvas.width) {
                         const col = document.createElement("td");
-                        col.style.backgroundColor = prevColor;
+                        col.style.background = prevColor;
                         col.style.width = `${count * pxSkip}px`;
                         col.colSpan = count;
                         row.appendChild(col);
@@ -112,7 +98,7 @@ function formSubmit(e) {
                 } else {
                     if (prevColor) {
                         const col = document.createElement("td");
-                        col.style.backgroundColor = prevColor;
+                        col.style.background = prevColor;
                         col.style.width = `${count * pxSkip}px`;
                         col.colSpan = count;
                         row.appendChild(col);
@@ -125,8 +111,6 @@ function formSubmit(e) {
         }
 
         const end = performance.now();
-        result.appendChild(
-            document.createTextNode("Took " + (Math.round(((end - start) / 1000) * 100) / 100 + " seconds"))
-        );
+        result.appendChild(document.createTextNode("Took " + (~~(((end - start) / 1000) * 100) / 100 + " seconds")));
     };
 }
