@@ -1,6 +1,7 @@
 table {
     border: none;
     border-spacing: 0;
+    min-width: max-content;
 }
 td {
     margin: 0;

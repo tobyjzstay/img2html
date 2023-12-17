@@ -35,12 +35,7 @@ function generateTable(e) {
     image.src = document.getElementById("image-value").getAttribute("src");
     image.onload = function () {
         const start = performance.now();
-        const table = document.createElement("table", {
-            height: image.height,
-            width: image.width,
-            cellPadding: 0,
-            cellSpacing: 0,
-        });
+        const table = document.createElement("table");
         canvas.width = image.width;
         canvas.height = image.height;
 
@@ -72,11 +67,6 @@ function generateTable(e) {
             for (let i = 0; i < canvas.width; i += pxSkip) {
                 const imageData = ctx.getImageData(i, j, pxSkip, pxSkip).data;
 
-                // const r = imageData[0];
-                // const g = imageData[1];
-                // const b = imageData[2];
-                // const a = imageData[3];
-
                 const reds = imageData.filter((_, i) => i % 4 === 0);
                 const greens = imageData.filter((_, i) => i % 4 === 1);
                 const blues = imageData.filter((_, i) => i % 4 === 2);
@@ -85,10 +75,12 @@ function generateTable(e) {
                 const g = Math.round(greens.reduce((a, b) => a + b, 0) / greens.length);
                 const b = Math.round(blues.reduce((a, b) => a + b, 0) / blues.length);
                 const a = Math.round(alphas.reduce((a, b) => a + b, 0) / alphas.length);
+
                 const color = rgbToHex(r, g, b, a);
+                if (count === 1000) count = 0;
                 if (prevColor === color) {
                     count++;
-                    if (i + pxSkip >= canvas.width) {
+                    if (i + pxSkip >= canvas.width || count === 1000) {
                         const col = document.createElement("td");
                         col.style.background = prevColor;
                         col.style.width = `${count * pxSkip}px`;
