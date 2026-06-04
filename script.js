@@ -1,5 +1,17 @@
 window.addEventListener("DOMContentLoaded", onLoad, false);
+
+const colorCache = new Map();
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
+let image;
+let wrapper;
+let imageError;
+
 function onLoad() {
+    image = document.getElementById("image-value");
+    wrapper = document.querySelector(".wrapper");
+    imageError = document.querySelector(".image-error");
+
     const pixelWidthForm = document.getElementById("pixel-width-form");
     pixelWidthForm.addEventListener("submit", generateTable, false);
 
@@ -8,18 +20,17 @@ function onLoad() {
         const imageInput = document.getElementById("image-input");
 
         const file = imageInput.files[0];
-        if (!file.type.match(/image\/*/)) {
-            document.querySelector(".image-error").textContent = "Please select a valid image file.";
-            document.getElementById("image-value").src = "";
-            document.querySelector(".wrapper").style.display = "none";
+        if (!file || !file.type.startsWith("image/")) {
+            imageError.textContent = "Please select a valid image file.";
+            image.src = "";
+            wrapper.style.display = "none";
             return;
-        } else {
-            document.querySelector(".image-error").textContent = "";
-        }
+        } else imageError.textContent = "";
+
         const reader = new FileReader();
         reader.onload = (e) => {
-            document.getElementById("image-value").src = e.target.result;
-            document.querySelector(".wrapper").style.display = "block";
+            image.src = e.target.result;
+            wrapper.style.display = "block";
         };
         reader.readAsDataURL(file);
     });
@@ -27,66 +38,106 @@ function onLoad() {
 
 function generateTable(e) {
     e.preventDefault();
-    const pixelWidth = document.getElementById("pixel-width");
+    colorCache.clear();
 
-    const pxSkip = parseInt(pixelWidth.value);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const start = performance.now();
 
-    const image = new Image();
-    image.src = document.getElementById("image-value").getAttribute("src");
-    image.onload = function () {
-        const start = performance.now();
-        const table = document.createElement("table");
-        canvas.width = image.width;
-        canvas.height = image.height;
+    if (!image.naturalWidth || !image.naturalHeight) return;
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const width = canvas.width;
+    const height = canvas.height;
 
-        ctx.drawImage(image, 0, 0);
+    const pxSkip = Number(document.getElementById("pixel-width").value);
+    if (!Number.isInteger(pxSkip) || pxSkip < 1) return;
 
-        const style = document.createElement("style");
-        style.appendChild(document.createTextNode(`td { height: ${pxSkip}px; }`));
+    const div = document.createElement("div");
+    div.className = "image";
 
-        const result = document.getElementById("result");
-        result.innerHTML = "";
-        result.appendChild(table);
-        result.appendChild(style);
+    ctx.drawImage(image, 0, 0);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        for (let j = 0; j < canvas.height; j += pxSkip) {
-            const row = document.createElement("tr");
-            let prevColor = null;
-            let count = 0;
-            for (let i = 0; i < canvas.width; i += pxSkip) {
-                const color = getAverageColor(imageData, i, j, canvas.width, pxSkip);
+    const result = document.getElementById("result");
+    result.innerHTML = "";
+    result.appendChild(div);
 
-                if (count === 1000) count = 0; // table cell limit
-                if (prevColor === color) {
-                    count++;
-                    if (i + pxSkip >= canvas.width || count === 1000) createColorCell(row, prevColor, count, pxSkip);
-                } else {
-                    if (prevColor) createColorCell(row, prevColor, count, pxSkip);
-                    prevColor = color;
-                    count = 1;
-                }
-            }
-            table.appendChild(row);
+    const imageData = ctx.getImageData(0, 0, width, height).data;
+    const fragment = document.createDocumentFragment();
+    for (let j = 0; j < height; j += pxSkip) {
+        const blockHeight = Math.min(pxSkip, height - j);
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.height = `${blockHeight}px`;
+
+        let prevColor = null;
+        let pendingWidth = 0;
+        let rowHtml = "";
+
+        function flush() {
+            rowHtml += `<span class="pixel" style="background:${rgbaIntToHex(prevColor)};width:${pendingWidth}px;"></span>`;
         }
 
-        const end = performance.now();
-        result.appendChild(document.createTextNode("Took " + (~~(((end - start) / 1000) * 100) / 100 + " seconds")));
-    };
+        for (let i = 0; i < width; i += pxSkip) {
+            const blockWidth = Math.min(pxSkip, width - i);
+            const color = getAverageColor(
+                imageData,
+                i,
+                j,
+                width,
+                height,
+                blockWidth,
+                blockHeight
+            );
+
+
+            if (prevColor === null) {
+                prevColor = color;
+                pendingWidth = blockWidth;
+                continue;
+            }
+
+            if (prevColor === color) {
+                pendingWidth += blockWidth;
+            } else {
+                flush();
+                prevColor = color;
+                pendingWidth = blockWidth;
+            }
+        }
+
+        if (prevColor !== null && pendingWidth > 0) flush();
+
+        row.innerHTML = rowHtml;
+        fragment.appendChild(row);
+    }
+    div.appendChild(fragment);
+
+    const seconds = ((performance.now() - start) / 1000).toFixed(2);
+
+    result.appendChild(document.createTextNode(`Took ${seconds} seconds`));
 }
 
-function getAverageColor(data, x, y, width, pxSkip) {
+function getAverageColor(
+    data,
+    x,
+    y,
+    width,
+    height,
+    blockWidth,
+    blockHeight
+) {
     let r = 0,
         g = 0,
         b = 0,
         a = 0,
         count = 0;
 
-    for (let dy = 0; dy < pxSkip; dy++) {
-        for (let dx = 0; dx < pxSkip; dx++) {
-            let index = ((y + dy) * width + (x + dx)) * 4;
+    const maxY = Math.min(y + blockHeight, height);
+    const maxX = Math.min(x + blockWidth, width);
+
+    for (let py = y; py < maxY; py++) {
+        for (let px = x; px < maxX; px++) {
+            const index = (py * width + px) * 4;
+
             r += data[index];
             g += data[index + 1];
             b += data[index + 2];
@@ -95,22 +146,20 @@ function getAverageColor(data, x, y, width, pxSkip) {
         }
     }
 
-    return rgbToHex(Math.round(r / count), Math.round(g / count), Math.round(b / count), Math.round(a / count));
+    r = Math.round(r / count);
+    g = Math.round(g / count);
+    b = Math.round(b / count);
+    a = Math.round(a / count);
+
+    return ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
 }
 
-function rgbToHex(r, g, b, a) {
-    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b) + componentToHex(a);
-}
+function rgbaIntToHex(color) {
+    let cached = colorCache.get(color);
+    if (cached) return cached;
 
-function componentToHex(c) {
-    let hex = c.toString(16);
-    return String(hex.length === 1 ? "0" + hex : hex);
-}
+    cached = "#" + color.toString(16).padStart(8, "0");
+    colorCache.set(color, cached);
 
-function createColorCell(row, color, count, pxSkip) {
-    const col = document.createElement("td");
-    col.style.background = color;
-    col.style.width = `${count * pxSkip}px`;
-    col.colSpan = count;
-    row.appendChild(col);
+    return cached;
 }
